@@ -1,0 +1,26 @@
+name: MT6785 kernel source build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  salaa-kernel:
+    # XNU's documented host path uses Apple's cctools and SDK on macOS.
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select the SALAA MT6785 configuration
+        run: make DEVICE=salaa salaa_defconfig
+      - name: Prepare pinned XNU, SDK, and open-source dependencies
+        run: |
+          xnu/apply.sh
+          xnu-deps/setup.sh --stage1
+          xnu-deps/setup.sh --stage2
+      - name: Build the SALAA kernel on the hosted runner
+        run: make DEVICE=salaa JOBS=3 kernel
+      - name: Verify the kernel artifact exists
+        run: test -s hakios-kernel && shasum -a 256 hakios-kernel
