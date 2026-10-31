@@ -7,8 +7,8 @@ profiles.
 **This is source bring-up work, not a bootable release.** The MT6785 EFI platform table and maximum
 CPU/read-only UFS configuration are in place, but neither phone has been booted with HakiOS. No
 local build or hardware run was performed. GitHub Actions validates both profiles and compiles the
-EFI loader; an on-demand hosted macOS workflow also compiles the XNU kernel with the shared MT6785
-configuration. These checks establish source/config consistency, not phone boot or peripheral
+EFI loader; an on-demand hosted macOS workflow compiles the XNU kernel under both SALAA and Nemo
+configurations. These checks establish source/config consistency, not phone boot or peripheral
 operation. Do not flash donor MT6768 images or treat these profiles as hardware-validated.
 
 ## Status
@@ -64,10 +64,10 @@ checked read-only path when native controller handoff is available.
 - [Hosted EFI/profile/source validation](https://github.com/iSciFiLite/hakios-mt6785/actions/runs/41251367912)
   passed for commit `e5d3a145`; it checked SALAA and Nemo configurations, driver metadata, docs,
   and compiled `xnuloader.efi` on Ubuntu Actions.
-- [Hosted XNU kernel source build](https://github.com/iSciFiLite/hakios-mt6785/actions/runs/41251367419)
-  passed for the same commit with the shared SALAA/MT6785 profile. The build produced a temporary
-  kernel on GitHub's macOS runner (SHA-256 `6cef545cbf916b3eb55e2f6a3c887b37638e07974854ed865b2d99c3df5cb2d7`);
-  no kernel binary was committed or attached as a release.
+- [Hosted XNU kernel source build](https://github.com/iSciFiLite/hakios-mt6785/actions/runs/41252760580)
+  passed for both SALAA and Nemo. Both configurations produced the same kernel artifact (SHA-256
+  `ea0d5ec779eb6bd29555525246800f5359e830880e92e5d6eb9374e639ca0141`) because they use the same
+  SoC driver set; no kernel binary was committed or attached as a release.
 - Neither run tests the boot chain, firmware services, memory map, display, storage, or peripherals
   on a physical phone. Nemo shares the MT6785 kernel layer, but its UEFI and board handoff remain
   separate and unverified.
@@ -86,6 +86,10 @@ ready to boot HakiOS; firmware integration and hardware validation remain necess
 - Donor device/reference: [`oosexgang/hakios-mt6768`](https://github.com/oosexgang/hakios-mt6768), specific to X6826B/MT6768, eMMC, 720×1640 display, Mali-G52 and its SPI TCM touchscreen.
 - SALAA UEFI reference: [`iSciFiLite/rmx2151-salaa-uefi`](https://github.com/iSciFiLite/rmx2151-salaa-uefi).
 - Nemo kernel reference: [`iSciFiLite/android_kernel_realme_nemo`](https://github.com/iSciFiLite/android_kernel_realme_nemo).
+- Nemo Linux bring-up reference: [`Hari-Pi/realme6-pmos-port`](https://github.com/Hari-Pi/realme6-pmos-port).
+  Its published status reports mainline Linux reaching initramfs and USB SSH; its display panel
+  remains unported. This does not validate HakiOS or a UEFI boot path.
+- SALAA Android device-tree reference: [`realme-mt6785-devs/android_device_realme_salaa`](https://github.com/realme-mt6785-devs/android_device_realme_salaa).
 
 Vendor device-tree references informed hardware addresses and board variants; they are not copied
 into this repository. No proprietary firmware, Darwin image, key material, or generated binary is
@@ -136,15 +140,17 @@ This source tree has no validated install or recovery recipe. Obtain proprietary
 a device/firmware build you are authorized to use; keep extracted files local and ignored, and
 record their source and license before adding a driver dependency.
 
-## Feature roadmap
+## Remaining implementation and validation gates
 
-1. Pair the EFI loader with UEFI firmware that offers UFS Block I/O, GOP and working PSCI; validate
-   one-core boot/recovery first, then the requested seven-core map.
-2. Verify the read-only UFS service and GPT geometry; exercise `xnusys` root before any write path.
-3. Add Novatek NVT SPI input and board-specific keys for the exact SALAA/Nemo revisions.
-4. Port Mali-G76 power domains/clocks/MMU using MT6785 references; do not use Adreno Metal code.
-5. Adapt SCP sensors and CONNSYS Wi-Fi/Bluetooth with matching firmware. Audio and camera remain
-   outside the donor's proven feature set.
+These remain outstanding; a successful hosted compile cannot close them. The published SALAA UEFI
+package lacks a reproducible MT6785 UFS Block I/O path and verified GOP/memory handoff. The separate
+Nemo branch has no verified memory map, and this repository has no phone-attached Actions runner.
+
+- Finish reproducible UEFI packages for both boards, including verified RAM/FD/stack reservations,
+  GOP handoff, PSCI behavior and UFS Block I/O; then boot a recovery payload on each device.
+- Verify read-only GPT/UFS access and `xnusys` root on the phones before considering any writes.
+- Port and test Novatek NVT SPI input, PMIC keys, Mali-G76 power/clock/MMU setup, SCP sensors, and
+  CONNSYS Wi-Fi/Bluetooth for each exact board revision. Audio and camera remain unsupported.
 
 Boot, storage, display, touch, GPU and other peripherals remain unverified. Update this README only
 after logs and device-specific test evidence are available.
