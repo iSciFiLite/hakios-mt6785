@@ -6,9 +6,10 @@ profiles.
 
 **This is source bring-up work, not a bootable release.** The MT6785 EFI platform table and maximum
 CPU/read-only UFS configuration are in place, but neither phone has been booted with HakiOS. No
-local build or hardware run was performed. GitHub Actions compiles the EFI loader on a hosted
-runner and validates both merged profiles; that verifies source compilation/config consistency,
-not a phone boot. Do not flash donor MT6768 images or treat these profiles as validated.
+local build or hardware run was performed. GitHub Actions validates both profiles and compiles the
+EFI loader; an on-demand hosted macOS workflow also compiles the XNU kernel with the shared MT6785
+configuration. These checks establish source/config consistency, not phone boot or peripheral
+operation. Do not flash donor MT6768 images or treat these profiles as hardware-validated.
 
 ## Status
 
@@ -57,6 +58,19 @@ These are requested capabilities, not proven results. UFS root requires firmware
 Block I/O and a correctly provisioned `xnusys` GPT partition. The kernel does not initialize the
 MT6785 UFS PHY/controller itself. The loader passes the MT6785 UFSHCI address to the existing
 checked read-only path when native controller handoff is available.
+
+## Build and verification evidence
+
+- [Hosted EFI/profile/source validation](https://github.com/iSciFiLite/hakios-mt6785/actions/runs/41251367912)
+  passed for commit `e5d3a145`; it checked SALAA and Nemo configurations, driver metadata, docs,
+  and compiled `xnuloader.efi` on Ubuntu Actions.
+- [Hosted XNU kernel source build](https://github.com/iSciFiLite/hakios-mt6785/actions/runs/41251367419)
+  passed for the same commit with the shared SALAA/MT6785 profile. The build produced a temporary
+  kernel on GitHub's macOS runner (SHA-256 `6cef545cbf916b3eb55e2f6a3c887b37638e07974854ed865b2d99c3df5cb2d7`);
+  no kernel binary was committed or attached as a release.
+- Neither run tests the boot chain, firmware services, memory map, display, storage, or peripherals
+  on a physical phone. Nemo shares the MT6785 kernel layer, but its UEFI and board handoff remain
+  separate and unverified.
 
 The linked [SALAA UEFI project](https://github.com/iSciFiLite/rmx2151-salaa-uefi) is experimental.
 Its published package does not provide a reproducible UFS host-controller path or verified GOP

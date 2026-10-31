@@ -74,5 +74,7 @@ boot environment. Nemo has no published UEFI profile in this repository.
 - Local vendor device trees were used to record the MT6785 GIC/UFS/GPU addresses and SALAA panel
   and touch variants. They are not copied into this repository.
 
-This layer is source scaffolding for hardware bring-up. No image was built or run on either phone;
-all MT6785 boot and peripheral behavior remains unverified. Do not flash a donor MT6768 image.
+This layer is source bring-up support. A hosted macOS runner compiled the shared XNU kernel source
+with the SALAA/MT6785 configuration; this did not produce a phone-ready system image or verify
+either handset. All MT6785 boot and peripheral behavior remains unverified. Do not flash a donor
+MT6768 image.
