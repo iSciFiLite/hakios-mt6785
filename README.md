@@ -61,8 +61,8 @@ checked read-only path when native controller handoff is available.
 
 ## Build and verification evidence
 
-- [Hosted EFI/profile/source validation](https://github.com/iSciFiLite/hakios-mt6785/actions/runs/41253165001)
-  passed for commit `6e8acb5`; it checked SALAA and Nemo configurations, driver metadata, docs,
+- [Hosted EFI/profile/source validation](https://github.com/iSciFiLite/hakios-mt6785/actions/runs/41254310066)
+  passed for commit `3aa52e6`; it checked SALAA and Nemo configurations, driver metadata, docs,
   and compiled `xnuloader.efi` on GitHub-hosted Ubuntu Actions.
 - [Hosted XNU kernel source build](https://github.com/iSciFiLite/hakios-mt6785/actions/runs/41252760580)
   passed for both SALAA and Nemo. Both configurations produced the same kernel artifact (SHA-256
