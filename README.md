@@ -6,8 +6,9 @@ profiles.
 
 **This is source bring-up work, not a bootable release.** The MT6785 EFI platform table and maximum
 CPU/read-only UFS configuration are in place, but neither phone has been booted with HakiOS. No
-local build or hardware run was performed, as requested. Do not flash donor MT6768 images or treat
-these profiles as validated.
+local build or hardware run was performed. GitHub Actions compiles the EFI loader on a hosted
+runner and validates both merged profiles; that verifies source compilation/config consistency,
+not a phone boot. Do not flash donor MT6768 images or treat these profiles as validated.
 
 ## Status
 
@@ -57,11 +58,12 @@ Block I/O and a correctly provisioned `xnusys` GPT partition. The kernel does no
 MT6785 UFS PHY/controller itself. The loader passes the MT6785 UFSHCI address to the existing
 checked read-only path when native controller handoff is available.
 
-The linked [SALAA UEFI project](https://github.com/iSciFiLite/rmx2151-salaa-uefi) is an experimental
-EDK II package, not a ready HakiOS firmware. Its current platform DSC does not include UFS DXE or
-GOP/display drivers, so it does not currently meet the HakiOS loader prerequisites. Nemo has no
-UEFI platform profile here. A usable device boot path still needs firmware integration and hardware
-validation.
+The linked [SALAA UEFI project](https://github.com/iSciFiLite/rmx2151-salaa-uefi) is experimental.
+Its published package does not provide a reproducible UFS host-controller path or verified GOP
+handoff, so it does not yet meet the HakiOS loader prerequisites. The
+[Nemo UEFI bring-up branch](https://github.com/iSciFiLite/rmx2151-salaa-uefi/tree/nemo) records a
+separate RMX2001 profile without reusing SALAA's unverified memory addresses. Neither firmware is
+ready to boot HakiOS; firmware integration and hardware validation remain necessary.
 
 ## Source and compatibility
 
