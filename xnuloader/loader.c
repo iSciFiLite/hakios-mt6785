@@ -555,18 +555,21 @@ struct platform {
 	uint64_t io_base, io_size;       /* one window covering the SoC peripherals */
 	uint64_t gic_dist, gic_redist;   /* GICv3 */
 	uint64_t uart;                   /* PL011, 0 if none */
+	uint64_t ufs_hc_pa;               /* UFSHCI base, 0 when this platform has no UFS */
 	int psci_hvc;                    /* the firmware's power interface is called with HVC, not SMC */
 	int log_other_cpu;               /* keep notes in the log partition while a kernel starts on another core */
 	int cores;                       /* at most this many processor cores, numbered from 0 ... */
 	int core_shift;                  /* ... in this bit of MPIDR: the phone numbers them in the second affinity field */
 	uint32_t timeout_scale;          /* a kernel on several cores gets this much longer to wait for a lock, 0: as it is */
 	uint32_t small_cores;            /* a bit for each of the slower cores, by number: "small-core" in the device tree */
+	uint64_t small_core_hz, big_core_hz;
 };
 
 static const struct platform platform_qemu_virt = {
 	.name = "qemu-virt", .io_base = 0x08000000, .io_size = 0x08000000,
 	.gic_dist = 0x08000000, .gic_redist = 0x080A0000, .uart = 0x09000000, .psci_hvc = 1,
 	.cores = 8, .core_shift = 0,
+	.small_core_hz = 1800000000ULL, .big_core_hz = 1800000000ULL,
 	/*
 	 * QEMU's emulated cores stop each other all the time (every flush of a page from all the
 	 * TLBs is a rendezvous of all its CPU threads), and the kernel's patience with a spin lock
@@ -578,7 +581,8 @@ static const struct platform platform_qemu_virt = {
 static const struct platform platform_redwood = {
 	/* io_base must be non-zero: XNU treats a zero SoC base as "no SoC" and skips clock setup. */
 	.name = "redwood", .io_base = 0x00400000, .io_size = 0x3FC00000,
-	.gic_dist = 0x17A00000, .gic_redist = 0x17A60000, .uart = 0, .log_other_cpu = 1,
+	.gic_dist = 0x17A00000, .gic_redist = 0x17A60000, .uart = 0, .ufs_hc_pa = 0x01d84000,
+	.log_other_cpu = 1,
 	.cores = 8, .core_shift = 8,
 	/*
 	 * Cores 0-3 are Cortex-A55s (1.8 GHz at most), 4-7 Cortex-A78s (2.4 GHz): a big one is about
@@ -586,6 +590,20 @@ static const struct platform platform_redwood = {
 	 * (XNU's machine_routines.c, ml_choose_slow_core_partners()).
 	 */
 	.small_cores = 0x0f,
+	.small_core_hz = 1800000000ULL, .big_core_hz = 2400000000ULL,
+};
+
+/* MT6785 (Realme 7 SALAA / Realme 6 Nemo), from the vendor and mainline device trees.
+ * The two clusters are numbered in MPIDR Aff1: A55 cores 0..5, A76-class cores 6..7.
+ * The UFSHCI base is shared by both handsets; board-level UFS power and firmware remain
+ * the UEFI's responsibility. Keep GPU and touch initialization in their own drivers. */
+static const struct platform platform_mt6785 = {
+	.name = "mt6785", .io_base = 0x08000000, .io_size = 0x10000000,
+	.gic_dist = 0x0c000000, .gic_redist = 0x0c040000, .uart = 0,
+	.ufs_hc_pa = 0x11270000, .log_other_cpu = 1,
+	.cores = 8, .core_shift = 8,
+	.small_cores = 0x3f,
+	.small_core_hz = 1701000000ULL, .big_core_hz = 2171000000ULL,
 };
 
 /* ------------------------------------------------------------------------ */
@@ -1673,7 +1691,8 @@ device_path_print(uint64_t unit, const efi_device_path *dp)
 
 /*
  * The UFS host controller, for the kernel's own driver (ufs_native= on the command line; without it
- * this loader never touches the controller's registers). The kernel may, for the length of a run,
+ * this loader never touches the controller's registers). The controller base comes from the
+ * selected platform: Qualcomm Redwood and MediaTek MT6785 have different physical maps. The kernel may, for the length of a run,
  * stop the controller's transfer request list, point it at a list of its own in hc_area (memory of
  * this loader, so that putting UEFI's back never depends on the kernel's memory), and start it
  * again; UEFI's list is one slot and its command descriptor, with no room for another request.
@@ -1682,7 +1701,6 @@ device_path_print(uint64_t unit, const efi_device_path *dp)
  * touches the storage; it reads for the kernel (block_poll) and writes the log (write_logs) only
  * while UEFI's list is the one in the controller.
  */
-#define HC_PA              0x1d84000ULL        /* ufshc@1d84000, "ufs_mem", in this phone's Android device tree */
 #define HC_CAP             0x00
 #define HC_VER             0x08
 #define HC_IS              0x20
@@ -1710,14 +1728,14 @@ static int hc_refused_reads;
 static inline uint32_t
 hc_rd(uint32_t off)
 {
-	return *(volatile uint32_t *)(uintptr_t)(HC_PA + off);
+	return *(volatile uint32_t *)(uintptr_t)(PLAT->ufs_hc_pa + off);
 }
 
 static inline void
 hc_wr(uint32_t off, uint32_t v)
 {
 	__asm__ volatile ("dsb sy" ::: "memory");
-	*(volatile uint32_t *)(uintptr_t)(HC_PA + off) = v;
+	*(volatile uint32_t *)(uintptr_t)(PLAT->ufs_hc_pa + off) = v;
 	__asm__ volatile ("dsb sy" ::: "memory");
 }
 
@@ -1823,10 +1841,14 @@ hc_init(void)
 	if (!hc_requested) {
 		return 0;
 	}
+	if (PLAT == NULL || PLAT->ufs_hc_pa == 0) {
+		print("ufs: native: this platform has no known UFSHCI base; the controller is left alone\n");
+		return 0;
+	}
 	lo = hc_rd(HC_UTRLBA);
 	hi = hc_rd(HC_UTRLBAU);
 	print("ufs: controller at %x: CAP %x, VER %x, HCE %x, HCS %x, IS %x, IE %x, list %x:%x, run %x, doorbell %x\n",
-	    HC_PA, (uint64_t)hc_rd(HC_CAP), (uint64_t)hc_rd(HC_VER), (uint64_t)hc_rd(HC_HCE), (uint64_t)hc_rd(HC_HCS),
+	    PLAT->ufs_hc_pa, (uint64_t)hc_rd(HC_CAP), (uint64_t)hc_rd(HC_VER), (uint64_t)hc_rd(HC_HCE), (uint64_t)hc_rd(HC_HCS),
 	    (uint64_t)hc_rd(HC_IS), (uint64_t)hc_rd(HC_IE), (uint64_t)hi, (uint64_t)lo, (uint64_t)hc_rd(HC_UTRLRSR),
 	    (uint64_t)hc_rd(HC_UTRLDBR));
 	if (!hc_known) {
@@ -2010,7 +2032,7 @@ block_start(void)
 	if (hc_known && hc_list_is_uefis() && hc_rd(HC_UTRLDBR) == 0 && (hc_rd(HC_HCE) & 1)) {
 		memset(hc_area, 0, sizeof(hc_area));
 		flush_dcache((uint64_t)(uintptr_t)hc_area, (uint64_t)(uintptr_t)hc_area + sizeof(hc_area));
-		block_shared.native.hc_pa = HC_PA;
+		block_shared.native.hc_pa = PLAT->ufs_hc_pa;
 		block_shared.native.area_pa = (uint64_t)(uintptr_t)hc_area;
 		block_shared.native.area_size = sizeof(hc_area);
 		block_shared.native.ucd_offset = HC_UCD_OFFSET;
@@ -3391,6 +3413,8 @@ run_kernel(int have_checkpoint, uint64_t checkpoint)
 	dt_begin(&w, "cpus");
 	for (int i = 0; i < cpu_count; i++) {
 		char name[5] = { 'c', 'p', 'u', (char)('0' + i), 0 };
+		int core = (int)(cpu_mpidr[i] >> plat->core_shift);
+		uint64_t core_hz = (plat->small_cores & (1u << (core & 31))) ? plat->small_core_hz : plat->big_core_hz;
 
 		dt_begin(&w, name);
 		dt_prop_str(&w, "device_type", "cpu");
@@ -3399,11 +3423,11 @@ run_kernel(int have_checkpoint, uint64_t checkpoint)
 		dt_prop_u32(&w, "cpu-id", (uint32_t)i);
 		dt_prop_u64(&w, "timebase-frequency", cntfrq);
 		dt_prop_u64(&w, "fixed-frequency", cntfrq);
-		dt_prop_u64(&w, "clock-frequency", 1800000000ULL);
+		dt_prop_u64(&w, "clock-frequency", core_hz);
 		dt_prop_u64(&w, "bus-frequency", 100000000ULL);
 		dt_prop_u64(&w, "memory-frequency", 100000000ULL);
 		dt_prop_u64(&w, "peripheral-frequency", 24000000ULL);
-		if (plat->small_cores & (1u << ((cpu_mpidr[i] >> plat->core_shift) & 31))) {
+		if (plat->small_cores & (1u << (core & 31))) {
 			dt_prop_u32(&w, "small-core", 1);
 		}
 		dt_end(&w);
@@ -4334,7 +4358,11 @@ efi_main(efi_handle image, efi_system_table *st)
 	print("CurrentEL=%x MIDR=%x MMFR0=%x CNTFRQ=%d image=%x\n", READ_SYSREG(CurrentEL) >> 2, READ_SYSREG(MIDR_EL1),
 	    READ_SYSREG(ID_AA64MMFR0_EL1), READ_SYSREG(CNTFRQ_EL0), (uint64_t)(uintptr_t)&__ImageBase);
 
+#if defined(HAKIOS_PLATFORM_MT6785)
+	PLAT = &platform_mt6785;
+#else
 	PLAT = &platform_qemu_virt;
+#endif
 	if (EFI_ERROR(BS->locate_protocol(&gop_guid, NULL, (void **)&GOP)) || GOP->mode == NULL ||
 	    GOP->mode->info == NULL || GOP->mode->fb_base == 0) {
 		GOP = NULL;                     /* no display (QEMU without -device ramfb) */
@@ -4344,9 +4372,17 @@ efi_main(efi_handle image, efi_system_table *st)
 		SCREEN.height = GOP->mode->info->height;
 		SCREEN.stride = GOP->mode->info->pixels_per_scanline * 4;
 		if (SCREEN.base == 0xE1000000ULL) {
+#if defined(HAKIOS_PLATFORM_MT6785)
+			/* A framebuffer address is not a SoC identity; keep the build-selected MTK platform. */
+#else
 			PLAT = &platform_redwood;
+#endif
 		} else {
+#if defined(HAKIOS_PLATFORM_MT6785)
+			/* Use the firmware's GOP framebuffer directly; QEMU ramfb is not a phone display. */
+#else
 			ramfb_phone_screen();
+#endif
 		}
 		print("display %d x %d at %x\n", (uint64_t)SCREEN.width, (uint64_t)SCREEN.height, SCREEN.base);
 	}

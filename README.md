@@ -1,113 +1,142 @@
 # HakiOS MT6785 — SALAA and Nemo
 
-An experimental HakiOS port workspace for MediaTek MT6785 devices, initially targeting the Realme 7
-(RMX2151, SALAA) and Realme 6 (RMX2001, Nemo). This repository is based on the HakiOS kernel's
-`mtk` branch and keeps a shared MT6785 layer with separate device profiles.
+An experimental HakiOS port for the Realme 7 (RMX2151, SALAA; Helio G95) and Realme 6 (RMX2001,
+Nemo; Helio G90T). It reuses HakiOS's MediaTek/XNU integration while maintaining separate board
+profiles.
 
-**This is an incomplete source port, not a bootable release.** The SALAA and Nemo profiles are
-conservative configuration scaffolds. Boot handoff, UFS loader integration, display setup and all
-phone peripherals remain unverified or unavailable. No build was run for this port, and no image is
-provided. Do not flash it.
+**This is source bring-up work, not a bootable release.** The MT6785 EFI platform table and maximum
+CPU/read-only UFS configuration are in place, but neither phone has been booted with HakiOS. No
+local build or hardware run was performed, as requested. Do not flash donor MT6768 images or treat
+these profiles as validated.
 
 ## Status
 
 | Area | SALAA | Nemo |
 |---|---|---|
-| SoC identification | MT6785, Helio G95 | MT6785, Helio G90T |
-| CPU | Topology recorded; only one CPU selected in the baseline profile | Same |
-| Display | 1080×2400 panel reference; framebuffer handoff unverified | 1080×2400 panel reference; framebuffer handoff unverified |
-| Touch and keys | Not enabled; SALAA stock references show controller variants | Not enabled; reference names Novatek NT36672C |
-| Storage | UFS detected in references; HakiOS loader handoff not implemented | Same |
-| GPU | Mali-G76 identified; no G76 driver port | Same |
-| Wi-Fi / Bluetooth | Unsupported | Unsupported |
-| Audio / camera / battery / haptics | Unsupported | Unsupported |
-| Boot and recovery | No supported HakiOS image or install procedure | No supported HakiOS image or install procedure |
+| SoC | MT6785, Helio G95 | MT6785, Helio G90T |
+| CPU | 6+2 MPIDR map; profile requests 7 CPUs and boot core 7; PSCI startup unverified | Same shared SoC profile |
+| Display | 1080×2400 Truly DSI reference; EFI loader uses GOP if firmware provides it | 1080×2400 Novatek panel reference; EFI loader uses GOP if available |
+| Touch | Novatek NF NT36672C over SPI3 in SALAA stock DT; no HakiOS NVT protocol driver | Nemo reference selects Novatek NVT SPI; exact module variant and HakiOS driver unverified |
+| Keys | No MT6785 PMIC/key driver | No MT6785 PMIC/key driver |
+| Storage | UFS read-only service/root requested; firmware Block I/O and `xnusys` partition are prerequisites | Same shared UFS path; firmware handoff not verified |
+| GPU | Mali-G76 MC4 identified; no MT6785 power/clock or G76 driver | Same |
+| Wi-Fi / Bluetooth | MT6785 CONNSYS and firmware path not ported | Same |
+| Sensors | SCP driver not adapted | SCP driver not adapted |
+| Audio / camera / battery / haptics | Unsupported; not in donor's working MT6768 feature set | Same |
+| Boot/recovery | No tested UEFI setup, HakiOS image, flash recipe, or recovery recipe | Same |
 
-Status is also recorded in [`devices/salaa/device.conf`](devices/salaa/device.conf) and
-[`devices/nemo/device.conf`](devices/nemo/device.conf). The shared hardware notes are in
-[`mtk/mt6785/README.md`](mtk/mt6785/README.md).
+Detailed device notes are in [`devices/salaa`](devices/salaa) and [`devices/nemo`](devices/nemo).
+Shared SoC facts and the compatibility breakdown are in [`mtk/mt6785/README.md`](mtk/mt6785/README.md).
 
-## Upstream and compatibility notes
+## How MT6768 helps
 
-- Kernel base: [`oosexgang/hakios-xnu-kernel`, `mtk` branch](https://github.com/oosexgang/hakios-xnu-kernel/tree/mtk), pinned source snapshot `db08f63ca513b711d562e4bd20d41fd9ab559f4e`.
-- Userland: the current source revision from [`oosexgang/hakios-xnu-kernel/userland`](https://github.com/oosexgang/hakios-xnu-kernel/tree/main/userland), commit `7caa4576e6e1be6d63f963b106b73480d6539a9b`; the [former standalone repository](https://github.com/oosexgang/hackios-xnu-userland) points to its replacement.
-- The donor's `mtk/loader/` and `mtk/mt6768/` are X6826B/MT6768-specific. They assume eMMC, a 720×1640 framebuffer and Mali-G52. This repo guards the Makefile so an MT6785 profile cannot accidentally use that loader or its flash scripts.
-- The generic XNU UFSHCI path now takes its controller address from the loader handoff, and XNU has a read-only `ufs_root=1` hook for a loader-provided `xnusys` entry. `CONFIG_UFS_ROOT` requires the UFS driver and `CONFIG_UFS=2`. The MTK loader does not yet create the required checked `ufs_shared_pa` page or hand off UFSHCI state, so the feature stays disabled.
-- [`oosexgang/hakios-metal`](https://github.com/oosexgang/hakios-metal) is an Adreno/MSM backend. It is not applicable to the Mali-G76 and is not included.
+The Infinix Hot 20 MT6768 port is a valuable reference for the HakiOS boot arguments, XNU handoff,
+read-only block-service protocol, kernel/userland wiring, diagnostics, and Mali Bifrost software
+interfaces. Helio G85, G90T and G95 share MediaTek design patterns, but MT6785 changes the board
+register maps, storage controller, CPU cluster affinity, GPU generation/configuration, power
+domains, touch controller and firmware details. Donor sequences are reused only where the shared
+interface is actually applicable.
 
-## Repository layout
+The separate [`hakios-metal`](https://github.com/oosexgang/hakios-metal) project targets Adreno/MSM
+and does not provide a Mali-G76 backend.
+
+## What this tree configures
+
+- `xnuloader` has a compile-time MT6785 platform description: GICv3 address range, 6+2 CPU map,
+  UFSHCI base `0x11270000`, and direct use of a firmware GOP framebuffer. It uses PSCI to start
+  additional cores.
+- `mtk/mt6785/configs/mt6785.config` requests seven XNU CPUs (`bootcpu=7`), the UEFI UFS block
+  service (`ufs=2`), and read-only `xnusys` root selection (`ufs_root=1`). The `UFS_WRITE` and
+  persistent-write paths are not enabled.
+- `make loader DEVICE=salaa` and `make loader DEVICE=nemo` select the MT6785 EFI platform. `make
+  esp` creates a UEFI volume containing the EFI loader and payload. `make boot-image`, `make phone`,
+  and `make system-flash` are not MT6785 install paths.
+
+These are requested capabilities, not proven results. UFS root requires firmware exposing UFS
+Block I/O and a correctly provisioned `xnusys` GPT partition. The kernel does not initialize the
+MT6785 UFS PHY/controller itself. The loader passes the MT6785 UFSHCI address to the existing
+checked read-only path when native controller handoff is available.
+
+The linked [SALAA UEFI project](https://github.com/iSciFiLite/rmx2151-salaa-uefi) is an experimental
+EDK II package, not a ready HakiOS firmware. Its current platform DSC does not include UFS DXE or
+GOP/display drivers, so it does not currently meet the HakiOS loader prerequisites. Nemo has no
+UEFI platform profile here. A usable device boot path still needs firmware integration and hardware
+validation.
+
+## Source and compatibility
+
+- Kernel base: [`oosexgang/hakios-xnu-kernel`, `mtk` branch](https://github.com/oosexgang/hakios-xnu-kernel/tree/mtk), snapshot `db08f63ca513b711d562e4bd20d41fd9ab559f4e`.
+- Userland: source revision `7caa4576e6e1be6d63f963b106b73480d6539a9b`; the former [standalone repository](https://github.com/oosexgang/hackios-xnu-userland) points to its replacement.
+- Donor device/reference: [`oosexgang/hakios-mt6768`](https://github.com/oosexgang/hakios-mt6768), specific to X6826B/MT6768, eMMC, 720×1640 display, Mali-G52 and its SPI TCM touchscreen.
+- SALAA UEFI reference: [`iSciFiLite/rmx2151-salaa-uefi`](https://github.com/iSciFiLite/rmx2151-salaa-uefi).
+- Nemo kernel reference: [`iSciFiLite/android_kernel_realme_nemo`](https://github.com/iSciFiLite/android_kernel_realme_nemo).
+
+Vendor device-tree references informed hardware addresses and board variants; they are not copied
+into this repository. No proprietary firmware, Darwin image, key material, or generated binary is
+included.
+
+## Repository map
 
 ```text
-mtk/mt6785/       shared MT6785 facts and conservative SoC configuration
-mtk/mt6768/       donor MT6768 implementation, retained for reference
-mtk/loader/       donor loader, still limited to the X6826B/MT6768 path
+mtk/mt6785/       shared MT6785 facts and default profile
+mtk/mt6768/       donor MT6768 drivers retained as porting references
+mtk/loader/       donor boot_a loader, still X6826B/MT6768-specific
 devices/salaa/    Realme 7 SALAA profile
 devices/nemo/     Realme 6 Nemo profile
-drivers/          common HakiOS kernel drivers, including generic UFS code
-userland/         source-only HakiOS userland at the pinned upstream revision
+xnuloader/        UEFI loader with QEMU, Redwood, and MT6785 platform descriptions
+drivers/          shared XNU drivers, including checked read-only UFS support
+userland/         pinned source-only HakiOS userland
 xnu/              XNU patch and HakiOS overlay sources
 ```
 
-The profiles do not enable MT6768, Qualcomm or Adreno device drivers. They use a single-CPU,
-firmware-free baseline and leave unported phone drivers out of the kernel configuration.
+## Configuration and development
 
-## Development setup
+The profiles aim for maximum currently implemented bring-up: multi-core enumeration plus
+read-only UFS service/root. Unavailable GPU, touch, PMIC, SCP and CONNSYS hardware drivers are not
+pretended into existence by enabling unrelated Qualcomm or MT6768 options. Turning on an absent
+driver would either leave a stub in place or run unverified register code; it would not make that
+feature work. As each MT6785 driver is ported, add it once to the shared SoC layer when hardware
+matches both devices, or to the specific device profile when it does not.
 
-Use a Linux or macOS development environment with Git, Python 3, Clang/LLD, Make, Flex, Bison and
-M4. XNU's pinned source and host tools are fetched by the repository scripts; Apple system software
-and phone firmware are not included.
+Configuration checks:
 
 ```sh
-git clone https://github.com/iSciFiLite/hakios-mt6785.git
-cd hakios-mt6785
 tools/hakios-device.py check salaa nemo
 tools/hakios-config.py defconfig salaa
 # or: tools/hakios-config.py defconfig nemo
+tools/hakios-config.py show
 ```
 
-These commands check repository/configuration structure only. This repository has not been built.
-The full XNU build path is `xnu/apply.sh`, `xnu-deps/setup.sh`, then `make DEVICE=salaa kernel` (or
-`DEVICE=nemo`). Those steps compile code and are intentionally not part of the port review recorded
-here. A successful compile would not establish that the phone boots.
+Building is intentionally not documented as a validated install procedure. For future developers,
+the source build is `xnu/apply.sh`, `xnu-deps/setup.sh`, then `make DEVICE=salaa kernel` (or
+`DEVICE=nemo kernel`). A kernel build does not prove bootability. `make loader DEVICE=salaa` builds
+the EFI app for the MT6785 platform; the EFI app still needs a UEFI environment with the required
+filesystem, UFS Block I/O, PSCI and preferably GOP services. A UEFI ESP can be assembled with
+`make esp DEVICE=salaa PAYLOAD=...` once a payload exists.
 
-The current `salaa` and `nemo` profile does not select a loader target. `make loader`, `make payload`,
-`make boot-image`, `make phone` and `make system-flash` must remain unavailable until the MT6785
-loader, UFS service page, board handoff and recovery path are implemented and reviewed. Do not use
-MT6768 flashing instructions or images on these devices.
+The UFS profile expects a read-only `xnusys` partition. No repartitioning or flashing utility is
+provided. Keep stock boot, vendor_boot, vbmeta and recovery images before any future device test.
+This source tree has no validated install or recovery recipe. Obtain proprietary firmware only from
+a device/firmware build you are authorized to use; keep extracted files local and ignored, and
+record their source and license before adding a driver dependency.
 
-## Firmware, setup and recovery
+## Feature roadmap
 
-The baseline has `CONFIG_FIRMWARE="none"`; it does not request proprietary phone firmware. If a
-future touch, GPU, Wi-Fi, audio or sensor driver needs a vendor blob, obtain it only from a device
-and firmware version you are authorized to use, keep it in a local ignored directory, and document
-its origin and license before enabling that feature. Do not commit extracted firmware, Darwin
-images, keys, certificates, or generated binaries.
+1. Pair the EFI loader with UEFI firmware that offers UFS Block I/O, GOP and working PSCI; validate
+   one-core boot/recovery first, then the requested seven-core map.
+2. Verify the read-only UFS service and GPT geometry; exercise `xnusys` root before any write path.
+3. Add Novatek NVT SPI input and board-specific keys for the exact SALAA/Nemo revisions.
+4. Port Mali-G76 power domains/clocks/MMU using MT6785 references; do not use Adreno Metal code.
+5. Adapt SCP sensors and CONNSYS Wi-Fi/Bluetooth with matching firmware. Audio and camera remain
+   outside the donor's proven feature set.
 
-There is currently no HakiOS setup or boot procedure for SALAA or Nemo. No partition changes,
-boot-image replacement, or flashing steps are supported by this source tree. Keep verified stock
-boot, vendor_boot, vbmeta and recovery images before experimenting. If recovery is needed, restore
-the device's stock images through the established Realme/MediaTek recovery procedure for that exact
-model and firmware release; this project does not yet provide a validated recovery recipe.
-
-## Porting order
-
-1. Implement an MT6785 loader/UEFI handoff and validate a one-core XNU console boot without writing
-   partitions.
-2. Have the loader publish and validate the UFS page, controller state and `xnusys` GPT geometry;
-   then exercise `ufs_root=1` read-only.
-3. Add separate SALAA and Nemo framebuffer/display and touch/key drivers from their exact board
-   revisions.
-4. Port Mali-G76 power domains, clocks and MMU safely; keep the Adreno backend disabled.
-5. Add MT6785 sensor and CONNSYS work only after firmware provenance and hardware behavior are
-   understood. Audio and camera are not in the donor MT6785 feature set and remain unsupported.
-
-Boot, storage, display and peripheral operation are unverified. The donor's MT6768 feature list is a
-porting target only, not a claim of parity.
+Boot, storage, display, touch, GPU and other peripherals remain unverified. Update this README only
+after logs and device-specific test evidence are available.
 
 ## Licensing and notices
 
-Preserve the repository's [`LICENSE`](LICENSE), [`LICENSE.APSL`](LICENSE.APSL), [`NOTICE`](NOTICE),
-[`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md), and file-level upstream notices. XNU patch,
-overlay and driver code are under APSL-2.0; project-authored loader, tools, documentation and
-userland follow the licenses stated in each file and the top-level license. No stock device tree,
-phone firmware, Darwin image or generated binary is distributed here.
+Preserve [`LICENSE`](LICENSE), [`LICENSE.APSL`](LICENSE.APSL), [`NOTICE`](NOTICE),
+[`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md), and source-file notices. XNU patch, overlay
+and driver code follows its file-level/APSL terms; project loader, tools, documentation and
+userland retain their stated licenses. No stock device tree, phone firmware, Darwin image, or
+generated binary is distributed here.

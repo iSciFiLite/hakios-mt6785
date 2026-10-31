@@ -1,8 +1,8 @@
 # HakiOS: one Makefile at the top, the way an Android tree has one. Every target is a script
 # below it; run the script itself for its options.
 #
-# This is the branch `mtk`. The ported MediaTek loader/flash/run targets are still only for the Infinix Hot 20
-# (DEVICE=x6826b, MT6768); a new SoC profile does not inherit them by directory presence.
+# The MT6768 boot-image runner remains X6826B-specific. MT6785 uses the generic UEFI application
+# with an MT6785 platform description; it does not inherit the MT6768 flash/phone path.
 #   make x6826b_defconfig && make kernel     the kernel: the common one, the MT6768's layer, the phone's configuration
 #   make loader          mtk/loader/build.sh: mtkloader, which runs in boot_a in front of Android's kernel
 #   make payload         build-payload.bin: hakios-kernel and the RAM disk (RAMDISK=, default userland/root.apfs)
@@ -53,7 +53,9 @@ DEVICE_SOC := $(shell awk '$$1 == "soc" { print $$2; exit }' devices/$(DEVICE)/d
 MTK_SOC := $(if $(wildcard mtk/$(DEVICE_SOC)/soc.conf),1,)
 # The current mtkloader is specific to MT6768/X6826B; a new mtk/ directory is not loader support.
 MTK := $(if $(filter mt6768,$(DEVICE_SOC)),1,)
-UNPORTED_MTK := $(if $(and $(MTK_SOC),$(if $(MTK),,1)),1,)
+MTK_UEFI := $(if $(filter mt6785,$(DEVICE_SOC)),1,)
+MTK_KNOWN := $(filter mt6768 mt6785,$(DEVICE_SOC))
+UNPORTED_MTK := $(if $(and $(MTK_SOC),$(if $(MTK_KNOWN),,1)),1,)
 RAMDISK ?= userland/root.apfs
 SYSTEM_IMAGE ?= userland/system.apfs
 JOBS ?= 8
@@ -98,19 +100,26 @@ kernel:
 loader:
 ifeq ($(UNPORTED_MTK),1)
 	@echo "make loader: the $(DEVICE_SOC) loader is not ported; the MT6768 loader is device-specific"; exit 1
+else ifeq ($(MTK_UEFI),1)
+	HAKIOS_PLATFORM=mt6785 xnuloader/build.sh
 else
 	$(if $(MTK),mtk/loader/build.sh,xnuloader/build.sh)
 endif
 
-# MediaTek (mtk/README.md): the kernel and the RAM disk as mtkloader's payload, and the boot image made of it
+# MT6768 only: the kernel and RAM disk as mtkloader's payload, and the boot image made of it
 payload:
-	[ -n "$(MTK)" ] || { echo "make payload: $(DEVICE) needs a ported MediaTek loader before payload generation"; exit 1; }
+	[ -z "$(UNPORTED_MTK)" ] || { echo "make payload: $(DEVICE_SOC) has no loader integration"; exit 1; }
 	[ -f hakios-kernel ] || { echo "make payload: no hakios-kernel (make $(DEVICE)_defconfig && make kernel)"; exit 1; }
 	[ -f "$(RAMDISK)" ] || { echo "make payload: no RAM disk $(RAMDISK) (RAMDISK=...)"; exit 1; }
 	python3 xnuloader/mkpayload.py -o build-payload.bin kernel=hakios-kernel ramdisk=$(RAMDISK)
 
+ifeq ($(MTK),1)
 boot-image: payload loader
 	python3 mtk/loader/build_flashed.py
+else
+boot-image:
+	@echo "make boot-image: this target wraps only the MT6768 boot_a chain; use make esp with UEFI"; exit 1
+endif
 
 system-flash:
 	[ -n "$(MTK)" ] || { echo "make system-flash: $(DEVICE) needs a ported MediaTek storage path"; exit 1; }
@@ -162,7 +171,9 @@ qemu-u-boot: kernel loader-open hello
 
 phone:
 	[ ! -f .config ] || tools/hakios-config.py check
-ifeq ($(UNPORTED_MTK),1)
+ifeq ($(MTK_UEFI),1)
+	@echo "make phone: no validated MT6785 fastboot runner; use a UEFI volume after firmware and recovery paths are validated"; exit 1
+else ifeq ($(UNPORTED_MTK),1)
 	@echo "make phone: the $(DEVICE_SOC) XNU runner is not ported; do not use the MT6768 runner"; exit 1
 else
 ifneq ($(MTK),)
@@ -178,6 +189,7 @@ endif
 # EFI system partition holds, which the loader reads itself: UEFI-native boot. The default tree is made again each time.
 esp:
 	[ "$(ESP_DIR)" != build/esp ] || rm -rf build/esp
+	$(if $(MTK_UEFI),HAKIOS_PLATFORM=mt6785 ,)xnuloader/build.sh
 	tools/mkesp.py $(ESP_DIR) $(PAYLOAD)
 
 # ---- configuration (configs/, tools/hakios-config.py) ---------------------------------------------------------

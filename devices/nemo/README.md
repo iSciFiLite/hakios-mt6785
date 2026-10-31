@@ -1,22 +1,17 @@
-# Realme 6 — Nemo (RMX2001)
+# Realme 6 Nemo (RMX2001)
 
-This is the device profile for the MediaTek MT6785 HakiOS port. It deliberately selects the
-single-CPU, no-phone-firmware baseline. It does not yet provide a bootable loader or working
-peripheral drivers.
+Nemo uses MediaTek MT6785 / Helio G90T. This profile inherits the shared MT6785 configuration:
+seven XNU CPUs requested with core 7 as the boot CPU, read-only UFS service, and `xnusys` root
+selection.
 
-## Hardware references
+The local Nemo postmarketOS reference selects a Novatek NT36672A DSI panel and Novatek NVT SPI
+touch driver. Its touch module and firmware revision still need confirmation on the target device.
+HakiOS has no NVT SPI input driver yet. The EFI loader can pass a UEFI GOP framebuffer, but no
+Nemo UEFI platform integration is published in this repository.
 
-The local Realme 6 port reference identifies RMX2001/Nemo and MT6785. Its board DTS overlay reports
-a 1080×2400 Truly display and a Novatek NT36672C touchscreen on SPI3. These are identification
-references only; this project has not validated the framebuffer or touch handoff. The shared
-MT6785 facts are in [`mtk/mt6785`](../../mtk/mt6785/README.md).
+The machine-readable feature status is in [`device.conf`](device.conf). Shared SoC facts and loader
+requirements are in [`mtk/mt6785`](../../mtk/mt6785/README.md); the top-level [README](../../README.md)
+documents setup, licensing, limits and the bring-up path.
 
-## Current state
-
-See `device.conf` for machine-readable status. The donor MTK loader assumes an X6826B eMMC, fixed
-720×1640 framebuffer and Mali-G52. It cannot be used on Nemo as-is. A separate Linux port boots to
-initramfs/USB networking, but its display is still unported; that work is not an XNU boot path.
-
-No firmware, generated image, or stock DT is included here. Do not flash a build from this profile;
-there is no supported boot or recovery image yet. Keep the original boot, vendor_boot and recovery
-images available for restoration using the device's established Realme/MediaTek recovery method.
+This profile is not a tested image or install procedure. Do not flash it. Preserve stock boot,
+vendor_boot, vbmeta and recovery images before future experiments.
