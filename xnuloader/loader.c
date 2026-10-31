@@ -594,7 +594,7 @@ static const struct platform platform_redwood = {
 };
 
 /* MT6785 (Realme 7 SALAA / Realme 6 Nemo), from the vendor and mainline device trees.
- * The two clusters are numbered in MPIDR Aff1: A55 cores 0..5, A76-class cores 6..7.
+ * The two clusters are numbered in MPIDR Aff1: A55 cores 0..5, performance cores 6..7.
  * The UFSHCI base is shared by both handsets; board-level UFS power and firmware remain
  * the UEFI's responsibility. Keep GPU and touch initialization in their own drivers. */
 static const struct platform platform_mt6785 = {
@@ -790,9 +790,9 @@ jump_to_kernel(uint64_t entry, uint64_t boot_args_pa)
 /* ------------------------------------------------------------------------ */
 /* The kernel on another core.                                               */
 /*                                                                          */
-/* The firmware runs on core 0, one of the four small ones (Cortex-A55); the */
-/* kernel uses a single core, and it had better be a big one (the A78s are   */
-/* about 2.5 times as fast). With "bootcpu=N" among the kernel's arguments   */
+/* The firmware keeps this loader on its selected boot core; with           */
+/* "bootcpu=N" among the kernel's arguments, the loader can start XNU on    */
+/* another core (normally a performance core on these heterogeneous SoCs).  */
 /* the loader does not jump into the kernel itself: it has the firmware      */
 /* (PSCI) start core N at other_cpu_entry, which enters the kernel exactly   */
 /* as core 0 would have, and waits. UEFI stays resident and lives on core 0, */
