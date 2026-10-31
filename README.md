@@ -61,30 +61,51 @@ checked read-only path when native controller handoff is available.
 
 ## Build and verification evidence
 
-- [Hosted EFI/profile/source validation](https://github.com/iSciFiLite/hakios-mt6785/actions/runs/41253093800)
-  passed for commit `7855d218`; it checked SALAA and Nemo configurations, driver metadata, docs,
-  and compiled `xnuloader.efi` on Ubuntu Actions.
+- [Hosted EFI/profile/source validation](https://github.com/iSciFiLite/hakios-mt6785/actions/runs/41253165001)
+  passed for commit `6e8acb5`; it checked SALAA and Nemo configurations, driver metadata, docs,
+  and compiled `xnuloader.efi` on GitHub-hosted Ubuntu Actions.
 - [Hosted XNU kernel source build](https://github.com/iSciFiLite/hakios-mt6785/actions/runs/41252760580)
   passed for both SALAA and Nemo. Both configurations produced the same kernel artifact (SHA-256
   `ea0d5ec779eb6bd29555525246800f5359e830880e92e5d6eb9374e639ca0141`) because they use the same
   SoC driver set; no kernel binary was committed or attached as a release.
 - Neither run tests the boot chain, firmware services, memory map, display, storage, or peripherals
   on a physical phone. Nemo shares the MT6785 kernel layer, but its UEFI and board handoff remain
-  separate and unverified.
+  separate and unverified. The kernel build used a hosted macOS runner; no local XNU or firmware
+  build was performed.
 
-The linked [SALAA UEFI project](https://github.com/iSciFiLite/rmx2151-salaa-uefi) is experimental.
-Its published package does not provide a reproducible UFS host-controller path or verified GOP
-handoff, so it does not yet meet the HakiOS loader prerequisites. The
-[Nemo UEFI bring-up branch](https://github.com/iSciFiLite/rmx2151-salaa-uefi/tree/nemo) records a
-separate RMX2001 profile without reusing SALAA's unverified memory addresses. Neither firmware is
-ready to boot HakiOS; firmware integration and hardware validation remain necessary.
+### What a successful XNU compile tells us
+
+The successful hosted compile means the pinned XNU source, HakiOS patch/overlay, toolchain, and
+selected SALAA/Nemo configuration were accepted through compilation and linking, and produced a
+kernel artifact. This is useful evidence that the source changes are integrated well enough to
+build and lets developers catch compiler, symbol, and linker regressions early.
+
+It does **not** establish that the kernel boots, that the UEFI loader or either phone's firmware is
+compatible, or that CPU startup, memory handoff, UFS, GOP, GPU, touch, Wi-Fi, or any other device
+driver works. It does not produce a signed Android boot image, an installable phone image, or a
+recovery method. The reported identical hashes show that the current two profiles share the same
+compiled kernel feature set; they are not evidence of board-specific runtime behavior.
+
+### UEFI compatibility status
+
+| Device | UEFI source/build status | HakiOS compatibility |
+|---|---|---|
+| SALAA / RMX2151 | Experimental source package; incomplete dependencies; no reproducible hosted firmware build; no verified GOP or UFS Block I/O | **No** |
+| Nemo / RMX2001 | Dedicated [UEFI bring-up repository](https://github.com/iSciFiLite/rmx2001-nemo-uefi); no complete platform package, verified memory map, or firmware build | **No** |
+
+HakiOS `xnuloader.efi` compiling for MT6785 only confirms the loader application can be built. The
+current SALAA/Nemo firmware sources do not yet satisfy the runtime prerequisites in this README.
+SALAA's configured FD and stack addresses remain assumptions; Nemo intentionally has no inherited
+SALAA addresses. Firmware source audits in the two UEFI repositories report that status but do not
+compile firmware or emulate a handset.
 
 ## Source and compatibility
 
 - Kernel base: [`oosexgang/hakios-xnu-kernel`, `mtk` branch](https://github.com/oosexgang/hakios-xnu-kernel/tree/mtk), snapshot `db08f63ca513b711d562e4bd20d41fd9ab559f4e`.
 - Userland: source revision `7caa4576e6e1be6d63f963b106b73480d6539a9b`; the former [standalone repository](https://github.com/oosexgang/hackios-xnu-userland) points to its replacement.
 - Donor device/reference: [`oosexgang/hakios-mt6768`](https://github.com/oosexgang/hakios-mt6768), specific to X6826B/MT6768, eMMC, 720×1640 display, Mali-G52 and its SPI TCM touchscreen.
-- SALAA UEFI reference: [`iSciFiLite/rmx2151-salaa-uefi`](https://github.com/iSciFiLite/rmx2151-salaa-uefi).
+- SALAA UEFI status and source: [`iSciFiLite/rmx2151-salaa-uefi`](https://github.com/iSciFiLite/rmx2151-salaa-uefi).
+- Nemo UEFI bring-up record: [`iSciFiLite/rmx2001-nemo-uefi`](https://github.com/iSciFiLite/rmx2001-nemo-uefi).
 - Nemo kernel reference: [`iSciFiLite/android_kernel_realme_nemo`](https://github.com/iSciFiLite/android_kernel_realme_nemo).
 - Nemo Linux bring-up reference: [`Hari-Pi/realme6-pmos-port`](https://github.com/Hari-Pi/realme6-pmos-port).
   Its published status reports mainline Linux reaching initramfs and USB SSH; its display panel
@@ -143,14 +164,25 @@ record their source and license before adding a driver dependency.
 ## Remaining implementation and validation gates
 
 These remain outstanding; a successful hosted compile cannot close them. The published SALAA UEFI
-package lacks a reproducible MT6785 UFS Block I/O path and verified GOP/memory handoff. The separate
-Nemo branch has no verified memory map, and this repository has no phone-attached Actions runner.
+package lacks complete source dependencies, a reproducible build, a reproducible MT6785 UFS Block
+I/O path, and verified GOP/memory handoff. Nemo has no buildable platform package or verified memory
+map. Neither device has a phone-attached Actions runner.
 
-- Finish reproducible UEFI packages for both boards, including verified RAM/FD/stack reservations,
-  GOP handoff, PSCI behavior and UFS Block I/O; then boot a recovery payload on each device.
-- Verify read-only GPT/UFS access and `xnusys` root on the phones before considering any writes.
-- Port and test Novatek NVT SPI input, PMIC keys, Mali-G76 power/clock/MMU setup, SCP sensors, and
-  CONNSYS Wi-Fi/Bluetooth for each exact board revision. Audio and camera remain unsupported.
+| Roadmap gate | Acceptance evidence | State |
+|---|---|---|
+| SALAA/Nemo UEFI source closure | Complete EDK II packages with pinned dependency revisions | Open |
+| Hosted firmware build | Clean runner builds each target and uploads provenance/logs | Open |
+| Boot and memory contract | Device-captured handoff; validated RAM/FD/stack/framebuffer/payload reservations | Open; requires devices |
+| Firmware services | UEFI boot, serial, GOP, PSCI, UFS Block I/O, and known-good recovery verified per model | Open; requires devices |
+| Read-only HakiOS storage | GPT and `xnusys` root confirmed on SALAA and Nemo | Open; requires devices |
+| Board drivers | Novatek NVT SPI input, PMIC keys, Mali-G76, SCP sensors, and CONNSYS ported/tested per revision | Open; requires drivers and devices |
+| Extended peripherals | Audio, camera, battery, haptics, and thermal support researched and tested | Open; no current implementation |
+| Release readiness | Device/revision test matrix, recovery procedure, and source-to-binary provenance published | Open |
+
+Audio and camera are not supported by the current donor feature set. Other unimplemented board
+drivers remain disabled in the configuration until a matching implementation exists; setting a
+configuration flag cannot create missing hardware support. Update the SALAA and Nemo firmware
+roadmaps with board/revision-specific evidence before describing any service or driver as working.
 
 Boot, storage, display, touch, GPU and other peripherals remain unverified. Update this README only
 after logs and device-specific test evidence are available.
