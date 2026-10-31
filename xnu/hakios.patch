@@ -1908,6 +1908,7 @@ index 5219fb0d9ed6..ab4e83089940 100644
 +//	emmc_root=1 beside rd=md0, which stays for user space to see -- libignition takes the "ramdisk" boot from it
 +//
 +	uint32_t emmcRoot = 0;
++	uint32_t ufsRoot = 0;
 +	if (PE_parse_boot_argn("emmc_root", &emmcRoot, sizeof(emmcRoot)) && emmcRoot) {
 +		OSSafeReleaseNULL(matching);
 +		if (hakios_mtk_emmc_root(root) != 0) {
@@ -1921,7 +1922,6 @@ index 5219fb0d9ed6..ab4e83089940 100644
 +
 +//	The phone's UFS system partition: the MediaTek loader must provide the same checked page as xnuloader.
 +//	No root is selected if the handoff page or the xnusys GPT entry is missing.
-+	uint32_t ufsRoot = 0;
 +	if (PE_parse_boot_argn("ufs_root", &ufsRoot, sizeof(ufsRoot)) && ufsRoot) {
 +		OSSafeReleaseNULL(matching);
 +		if (hakios_ufs_root(root) != 0) {
