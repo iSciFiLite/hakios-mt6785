@@ -1,0 +1,6 @@
+# HakiOS's conservative Realme 6 profile: shared defaults, MT6785 facts, and this board's choices.
+# Phone-specific drivers stay disabled until their hardware paths are ported.
+#include common_defconfig
+#include open.config
+#include mt6785.config
+#include nemo.config
