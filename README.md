@@ -90,7 +90,7 @@ compiled kernel feature set; they are not evidence of board-specific runtime beh
 
 | Device | UEFI source/build status | HakiOS compatibility |
 |---|---|---|
-| SALAA / RMX2151 | Historical [v0.1.0 EDK II FD](https://github.com/iSciFiLite/rmx2151-salaa-uefi/blob/main/artifacts/release-v0.1.0/SALAA_EFI.release-v0.1.0.fd) exists; current source dependencies are incomplete; no reproducible hosted firmware build or verified GOP/UFS Block I/O | **No** |
+| SALAA / RMX2151 | Historical [v0.1.0 EDK II FD](https://github.com/iSciFiLite/rmx2151-salaa-uefi/releases/download/v0.1.0/SALAA_EFI.release-v0.1.0.fd) exists; current source dependencies are incomplete; no reproducible hosted firmware build or verified GOP/UFS Block I/O | **No** |
 | Nemo / RMX2001 | Dedicated [UEFI bring-up repository](https://github.com/iSciFiLite/rmx2001-nemo-uefi); no complete platform package, verified memory map, or firmware build | **No** |
 
 HakiOS `xnuloader.efi` compiling for MT6785 only confirms the loader application can be built. The
