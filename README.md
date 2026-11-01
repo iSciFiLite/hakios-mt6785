@@ -171,6 +171,9 @@ package lacks complete source dependencies, a reproducible build, a reproducible
 I/O path, and verified GOP/memory handoff. Nemo has no buildable platform package or verified memory
 map. Neither device has a phone-attached Actions runner.
 
+The user-supplied SALAA live DT summary records an 8 GiB `/memory` declaration, 26 reserved-memory
+ranges, and enabled UFS host/PHY nodes at `0x11270000` and `0x11fa0000` ([input hashes and limits](https://github.com/iSciFiLite/rmx2151-salaa-uefi/blob/main/docs/salaa-device-evidence.md)). These are RMX2151 Android-DT observations, not a UEFI handoff or proof that UFS Block I/O works. SALAA's current UEFI source also has a different system-memory PCD; do not use these values to configure Nemo.
+
 | Roadmap gate | Acceptance evidence | State |
 |---|---|---|
 | SALAA/Nemo UEFI source closure | Complete EDK II packages with pinned dependency revisions | Open |
