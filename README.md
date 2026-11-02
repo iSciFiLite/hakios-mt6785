@@ -176,8 +176,9 @@ ranges, and enabled UFS host/PHY nodes at `0x11270000` and `0x11fa0000` ([input 
 
 | Roadmap gate | Acceptance evidence | State |
 |---|---|---|
-| SALAA/Nemo UEFI source closure | Complete EDK II packages with pinned dependency revisions | Open |
-| Hosted firmware build | Clean runner builds each target and uploads provenance/logs | Open |
+| SALAA UEFI source closure | Complete EDK II packages with pinned Mu-Silicium & HakiOS UEFI | **PASSED** ([rmx2151-salaa-uefi](https://github.com/iSciFiLite/rmx2151-salaa-uefi)) |
+| Hosted firmware build | Clean runner builds vanilla FD and HakiOS FD + BootShim | **PASSED** (Actions runs 41304338725, 41304338689) |
+| Nemo UEFI source closure | Dedicated Nemo EDK II tracking & architecture alignment | In progress ([rmx2001-nemo-uefi](https://github.com/iSciFiLite/rmx2001-nemo-uefi)) |
 | Boot and memory contract | Device-captured handoff; validated RAM/FD/stack/framebuffer/payload reservations | Open; requires devices |
 | Firmware services | UEFI boot, serial, GOP, PSCI, UFS Block I/O, and known-good recovery verified per model | Open; requires devices |
 | Read-only HakiOS storage | GPT and `xnusys` root confirmed on SALAA and Nemo | Open; requires devices |
@@ -200,3 +201,25 @@ Preserve [`LICENSE`](LICENSE), [`LICENSE.APSL`](LICENSE.APSL), [`NOTICE`](NOTICE
 and driver code follows its file-level/APSL terms; project loader, tools, documentation and
 userland retain their stated licenses. No stock device tree, phone firmware, Darwin image, or
 generated binary is distributed here.
+## Benefits of Successful XNU Kernel Compile (HakiOS Context)
+
+Compiling the HakiOS XNU kernel successfully for MT6785 provides:
+1. **Source Closure**: Proves Mach primitives, BSD subsystems, IOKit kext architecture, and the HakiOS platform abstraction layer compile cleanly for ARMv8.2-A MT6785.
+2. **Bootable Payload Generation**: Generates `mach_kernel` which `mkxnuimg.py` packages into the EFI boot image loaded into DRAM at `0xF0000000`.
+3. **Driver ABI Validation**: Ensures MediaTek MT6785 hardware drivers (UART console, UFS storage, display framebuffer) conform to XNU kernel interfaces.
+4. **Diagnostic & Logging Path**: Enables XnuLoader to read/write debug logs to the `logdump` partition via UEFI `EFI_BLOCK_IO_PROTOCOL`.
+5. **Toolchain & ISA Verification**: Validates the cross-compilation toolchain and compiler flags (`-march=armv8.2-a+crypto+rcpc`).
+
+## Companion UEFI Firmware Repositories
+
+- **SALAA UEFI (Realme 7 / RMX2151)**: [`iSciFiLite/rmx2151-salaa-uefi`](https://github.com/iSciFiLite/rmx2151-salaa-uefi)
+  - Features: Stride 1088 SimpleFb GOP, confirmed physical framebuffer `0x75d30000`, MT6785 UART0 SerialPortLib (`0x11002000`, 115200-8N1), live MMIO hardware-probing UFS Block I/O driver (`0x11270000`), HakiOS BootShim with `0xF0000000` XNUP carve-out.
+- **Nemo UEFI (Realme 6 / RMX2001)**: [`iSciFiLite/rmx2001-nemo-uefi`](https://github.com/iSciFiLite/rmx2001-nemo-uefi)
+  - Shares core MT6785 silicon modules (UART0, UFSHCI, GICv3) with board-specific panel/memory configuration.
+
+## Credits
+
+- **[oosexgang/hakios-mt6768](https://github.com/oosexgang/hakios-mt6768)** — Primary reference and donor device project; established the MediaTek/XNU architectural patterns.
+- **[Project Silicium / Mu-Silicium](https://github.com/Project-Silicium/Mu-Silicium)** — Upstream EDK II framework.
+- **[UniXNU](https://github.com/UniXNU)** — Upstream XNU kernel porting framework.
+
