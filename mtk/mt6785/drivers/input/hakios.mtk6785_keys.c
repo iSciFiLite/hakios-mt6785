@@ -26,7 +26,8 @@ extern vm_offset_t ml_io_map(vm_offset_t phys_addr, vm_size_t size);
 
 #define GPIO_PHYS       0x10005000u
 #define GPIO_SIZE       0x1000u
-#define GPIO_DIN3       0x0230u         /* pins 96..127: GPIO110 is bit 14 */
+#define GPIO_DIN1       0x0210u         /* pins 32..63: Nemo Vol Up GPIO 59 (bit 27), Vol Down GPIO 60 (bit 28) */
+#define GPIO_DIN3       0x0230u         /* pins 96..127: Salaa Vol Up GPIO 110 (bit 14) */
 
 #define PWRAP_PHYS      0x1000D000u
 #define PWRAP_SIZE      0x1000u
@@ -107,15 +108,16 @@ keys_thread(__unused void *arg, __unused wait_result_t wr_arg)
 	for (;;) {
 		bool now[3];
 		uint32_t kpd_mem = kpd_va ? rd(kpd_va, KP_MEM1) : 0xffffffffu;
-		uint32_t gpio_din = gpio_va ? rd(gpio_va, GPIO_DIN3) : 0xffffffffu;
+		uint32_t gpio_din1 = gpio_va ? rd(gpio_va, GPIO_DIN1) : 0xffffffffu;
+		uint32_t gpio_din3 = gpio_va ? rd(gpio_va, GPIO_DIN3) : 0xffffffffu;
 		uint32_t pmic_top = 0xffff;
 
 		(void)pmic_read(MT6359_TOPSTATUS, &pmic_top);
 
-		/* Vol Up: GPIO110 (bit 14 of DIN3, active low) or KPD key 0 */
-		now[0] = !(gpio_din & (1u << 14)) || !(kpd_mem & (1u << 0));
-		/* Vol Down: KPD key 1 or MT6359 HOMEKEY */
-		now[1] = !(kpd_mem & (1u << 1)) || !(pmic_top & HOMEKEY_DEB);
+		/* Vol Up: Nemo GPIO 59 (bit 27 of DIN1), Salaa GPIO 110 (bit 14 of DIN3), or KPD key 0 */
+		now[0] = !(gpio_din1 & (1u << 27)) || !(gpio_din3 & (1u << 14)) || !(kpd_mem & (1u << 0));
+		/* Vol Down: Nemo GPIO 60 (bit 28 of DIN1), KPD key 1, or MT6359 HOMEKEY */
+		now[1] = !(gpio_din1 & (1u << 28)) || !(kpd_mem & (1u << 1)) || !(pmic_top & HOMEKEY_DEB);
 		/* Power: MT6359 PWRKEY_DEB (bit 1, active low) */
 		now[2] = !(pmic_top & PWRKEY_DEB);
 

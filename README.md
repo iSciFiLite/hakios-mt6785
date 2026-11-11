@@ -220,7 +220,7 @@ Compiling the HakiOS XNU kernel successfully for MT6785 provides:
 - **SALAA UEFI (Realme 7 / RMX2151)**: [`iSciFiLite/rmx2151-salaa-uefi`](https://github.com/iSciFiLite/rmx2151-salaa-uefi)
   - Features: Stride 1088 SimpleFb GOP, confirmed physical framebuffer `0x75d30000`, MT6785 UART0 SerialPortLib (`0x11002000`, 115200-8N1), live MMIO hardware-probing UFS Block I/O driver (`0x11270000`), HakiOS BootShim with `0xF0000000` XNUP carve-out.
 - **Nemo UEFI (Realme 6 / RMX2001)**: [`iSciFiLite/rmx2001-nemo-uefi`](https://github.com/iSciFiLite/rmx2001-nemo-uefi)
-  - Shares core MT6785 silicon modules (UART0, UFSHCI, GICv3) with board-specific panel/memory configuration.
+  - Features: Stride 1088 SimpleFb GOP, confirmed physical framebuffer `0x79D20000` (length `0x022E0000`), MT6785 UART0 SerialPortLib (`0x11002000`, 115200-8N1), live MMIO hardware-probing UFS Block I/O driver (`0x11270000`), HakiOS BootShim with `0xF0000000` XNUP carve-out. Complete standalone release at [`v0.1.0-nemo-uefi`](https://github.com/iSciFiLite/rmx2001-nemo-uefi/releases/tag/v0.1.0-nemo-uefi) and unified inclusive release at [`iSciFiLite/hakios-rm6785-nemo/releases/tag/v1.0.0-nemo-unified`](https://github.com/iSciFiLite/hakios-rm6785-nemo/releases/tag/v1.0.0-nemo-unified).
 
 ## Credits
 
